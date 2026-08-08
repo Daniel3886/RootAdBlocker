@@ -56,19 +56,19 @@ termux-setup-storage
 pkg install openssh openjdk-17 maven git wget
 ```
 
-### 3. Set up SSH so you can work from your PC instead of the phone screen
+### 3. Set up SSH so you can work from your PC instead of the device screen
 
 Inside Termux:
 ```bash
 sshd
 passwd        # set a password when prompted
 whoami        # note your username, e.g. u0_a158
-ifconfig      # note the phone's IP under wlan0
+ifconfig      # note the devices's IP under wlan0
 ```
 
 From your PC (same Wi-Fi):
 ```bash
-ssh -p 8022 <username>@<phone-ip>
+ssh -p 8022 <username>@<device-ip>
 ```
 e.g. `ssh -p 8022 u0_a158@192.168.1.10`, then enter the password you set.
 You should land on the Termux welcome banner:
@@ -82,15 +82,15 @@ Community: https://termux.dev/community
 Note: `sshd` needs to be re-run each time Termux is fully closed and reopened
 — it doesn't persist across restarts by default.
 
-### 4. Give the phone a fixed local IP
+### 4. Give the device a fixed local IP
 
 So the IP you SSH/connect to never changes, set a **DHCP/static lease** on
-your router for the phone's Wi-Fi MAC address (Settings → About phone →
+your router for the device's Wi-Fi MAC address (Settings → About device →
 Status → Wi-Fi MAC address).
 
-### 5. Get the project onto the phone
+### 5. Get the project onto the device
 
-Clone it directly on the phone (simplest — no manual file transfer needed):
+Clone it directly on the device (simplest — no manual file transfer needed):
 ```bash
 git clone https://github.com/Daniel3886/RootDNS.git
 cd RootDNS
@@ -104,7 +104,7 @@ wget -O blocklist/hosts.txt https://raw.githubusercontent.com/StevenBlack/hosts/
 
 ### 6. Build
 
-Directly on the phone (slower, no transfer step):
+Directly on the device (slower, no transfer step):
 ```bash
 mvn clean package -DskipTests
 ```
@@ -113,7 +113,7 @@ Or build on your PC (faster) and copy just the jar over instead:
 ```bash
 # on your PC, inside the project folder:
 mvn clean package -DskipTests
-scp -P 8022 target/dns-sinkhole.jar <username>@<phone-ip>:~/RootDNS/target/
+scp -P 8022 target/dns-sinkhole.jar <username>@<device-ip>:~/RootDNS/target/
 ```
 
 ### 7. Run
