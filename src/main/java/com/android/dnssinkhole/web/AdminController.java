@@ -49,6 +49,12 @@ public class AdminController {
         return domainRuleRepository.save(new DomainRule(body.get("domain").toLowerCase(), DomainRule.RuleType.BLOCK));
     }
 
+    @GetMapping("/blocklist/check")
+    public Map<String, Object> checkDomain(@RequestParam String domain) {
+        boolean blocked = blocklistService.isBlocked(domain);
+        return Map.of("domain", domain, "blocked", blocked);
+    }
+
     @PostMapping("/rules/allow")
     public DomainRule addAllowRule(@RequestBody Map<String, String> body) {
         return domainRuleRepository.save(new DomainRule(body.get("domain").toLowerCase(), DomainRule.RuleType.ALLOW));
