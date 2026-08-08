@@ -1,10 +1,16 @@
-# RootAdBlocker (Spring Boot, running on a rooted Samsung J3 via Termux)
+# RootAdBlocker (Spring Boot, running on a rooted Android device via Termux)
 
 ## What this is
 
-A network-wide DNS-based ad/tracker blocker built from scratch in Java + Spring
-Boot, running on a 10-year-old rooted Samsung Galaxy J3. Devices on the network point their DNS settings at the phone's static IP; the app intercepts DNS lookups, checks each domain against a blocklist, and either
-kills the request (ad/tracker) or forwards it upstream (everything else).
+A network-wide DNS-based ad/tracker blocker built from scratch in Java +
+Spring Boot, running on a rooted Android device. Devices on the network point
+their DNS settings at the host device's static IP, the app intercepts DNS
+lookups, checks each domain against a blocklist, and either kills the request
+(ad/tracker) or forwards it upstream (everything else).
+
+Any spare rooted Android phone or tablet works as the host — this was
+originally built and tested on an old low-spec Samsung j3 to prove that even
+years-old, underpowered hardware is enough to run this reliably.
 
 ## What's here
 
