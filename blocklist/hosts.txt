@@ -1,0 +1,6 @@
+# Sample starter list — replace this with the full StevenBlack hosts list:
+# wget -O blocklist/hosts.txt https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+0.0.0.0 doubleclick.net
+0.0.0.0 googlesyndication.com
+0.0.0.0 googleadservices.com
+0.0.0.0 ads.example.com

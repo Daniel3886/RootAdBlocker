@@ -1,0 +1,9 @@
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/DnsSinkholeApplication.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/blocklist/BlocklistService.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/dns/DnsForwarder.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/dns/DnsUdpServer.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/model/DomainRule.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/model/QueryLog.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/repository/DomainRuleRepository.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/repository/QueryLogRepository.java
+/Users/jamoj/Downloads/dns-sinkhole/src/main/java/com/android/dnssinkhole/web/AdminController.java
