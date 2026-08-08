@@ -2,12 +2,12 @@ package com.android.dnssinkhole.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "domain_rules")
 @Data
-@RequiredArgsConstructor
+@NoArgsConstructor
 public class DomainRule {
 
     @Id
@@ -20,6 +20,11 @@ public class DomainRule {
     // BLOCK or ALLOW (ALLOW overrides the static hosts-file blocklist)
     @Enumerated(EnumType.STRING)
     private RuleType type;
+
+    public DomainRule(String domain, RuleType ruleType) {
+        this.domain = domain;
+        this.type = ruleType;
+    }
 
     public enum RuleType { BLOCK, ALLOW }
 }
