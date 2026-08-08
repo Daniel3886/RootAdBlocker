@@ -1,0 +1,10 @@
+com/android/dnssinkhole/blocklist/BlocklistService.class
+com/android/dnssinkhole/model/DomainRule$RuleType.class
+com/android/dnssinkhole/dns/DnsUdpServer.class
+com/android/dnssinkhole/web/AdminController.class
+com/android/dnssinkhole/repository/QueryLogRepository.class
+com/android/dnssinkhole/dns/DnsForwarder.class
+com/android/dnssinkhole/model/QueryLog.class
+com/android/dnssinkhole/model/DomainRule.class
+com/android/dnssinkhole/repository/DomainRuleRepository.class
+com/android/dnssinkhole/DnsSinkholeApplication.class
