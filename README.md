@@ -9,7 +9,7 @@ lookups, checks each domain against a blocklist, and either kills the request
 (ad/tracker) or forwards it upstream (everything else).
 
 Any spare rooted Android phone or tablet works as the host — this was
-originally built and tested on an old low-spec Samsung j3 to prove that even
+originally built and tested on an old low-spec Samsung j2 pro to prove that even
 years-old, underpowered hardware is enough to run this reliably.
 
 ## What's here
@@ -146,4 +146,6 @@ blocklist, which will fail to load.
 
 Check it's working from your PC:
 
+```bash
 http://<phone-ip>:8080/api/stats
+```
