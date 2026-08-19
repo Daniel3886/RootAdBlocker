@@ -102,8 +102,9 @@ git clone https://github.com/Daniel3886/RootDNS.git
 cd RootDNS
 ```
 
-Download the real blocklist (the repo ships with a handful of sample domains
-only, not a full list):
+Download one or more real blocklists into the `blocklist/` directory (the repo
+ships with a handful of sample domains only, not a full list). Every regular
+file in that directory is loaded at startup:
 ```bash
 wget -O blocklist/hosts.txt https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
 ```

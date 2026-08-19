@@ -5,10 +5,14 @@ import com.android.dnssinkhole.repository.DomainRuleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -20,15 +24,28 @@ class BlocklistServiceTest {
     @Mock
     private DomainRuleRepository domainRuleRepository;
 
+    @TempDir
+    private Path blocklistDir;
+
     private BlocklistService blocklistService;
 
     @BeforeEach
-    void setUp() throws NoSuchFieldException, IllegalAccessException {
+    void setUp() throws NoSuchFieldException, IllegalAccessException, IOException {
         blocklistService = new BlocklistService(domainRuleRepository);
 
-        Field field = BlocklistService.class.getDeclaredField("blocklistFile");
+        Files.writeString(blocklistDir.resolve("ads.txt"), """
+                # Test blocklist
+                0.0.0.0 googlesyndication.com
+                0.0.0.0 ads.example.com
+                """);
+        Files.writeString(blocklistDir.resolve("trackers.txt"), """
+                0.0.0.0 doubleclick.net
+                0.0.0.0 44chan.me
+                """);
+
+        Field field = BlocklistService.class.getDeclaredField("blocklistDir");
         field.setAccessible(true);
-        field.set(blocklistService, "src/test/java/resources/blocklist.txt");
+        field.set(blocklistService, blocklistDir.toString());
 
         blocklistService.loadStaticList();
     }
@@ -39,6 +56,12 @@ class BlocklistServiceTest {
         assertTrue(blocklistService.isBlocked("googlesyndication.com"));
         assertTrue(blocklistService.isBlocked("doubleclick.net"));
         assertTrue(blocklistService.isBlocked("44chan.me"));
+    }
+
+    @Test
+    void loadsDomainsFromAllFilesInDirectory() {
+        assertTrue(blocklistService.isBlocked("ads.example.com"));
+        assertEquals(4, blocklistService.staticListSize());
     }
 
     @Test

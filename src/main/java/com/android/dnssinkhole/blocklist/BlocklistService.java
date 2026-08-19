@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
  * Fast path: a big static hosts-style blocklist loaded into memory at startup.
@@ -27,8 +29,8 @@ public class BlocklistService {
 
     // Local cache of the hosts-file style list. Grab one from:
     // https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
-    @Value("${sinkhole.blocklist.file:blocklist/hosts.txt}")
-    private String blocklistFile;
+    @Value("${sinkhole.blocklist.dir:${sinkhole.blocklist.file:blocklist}}")
+    private String blocklistDir;
 
     private final Set<String> staticBlockedDomains = ConcurrentHashMap.newKeySet();
     private final DomainRuleRepository domainRuleRepository;
@@ -39,13 +41,43 @@ public class BlocklistService {
 
     @PostConstruct
     public void loadStaticList() {
-        Path path = Path.of(blocklistFile);
+        Path path = Path.of(blocklistDir);
         if (!Files.exists(path)) {
-            log.warn("Blocklist file not found at {}. Sinkhole will only use DB rules until you add one.", path.toAbsolutePath());
+            log.warn("Blocklist path not found at {}. Sinkhole will only use DB rules until you add one.", path.toAbsolutePath());
             return;
         }
+
+        staticBlockedDomains.clear();
+        try {
+            int count;
+            if (Files.isDirectory(path)) {
+                count = loadBlocklistDirectory(path);
+                log.info("Loaded {} domains into the static blocklist from files under {}", count, path.toAbsolutePath());
+            } else if (Files.isRegularFile(path)) {
+                count = loadBlocklistFile(path);
+                log.info("Loaded {} domains into the static blocklist from {}", count, path.toAbsolutePath());
+            } else {
+                log.warn("Blocklist path at {} is not a regular file or directory.", path.toAbsolutePath());
+            }
+        } catch (IOException e) {
+            log.error("Failed to read blocklist path", e);
+        }
+    }
+
+    private int loadBlocklistDirectory(Path directory) throws IOException {
         int count = 0;
-        try (BufferedReader reader = Files.newBufferedReader(path)) {
+        try (Stream<Path> files = Files.walk(directory)) {
+            Iterator<Path> iterator = files.filter(Files::isRegularFile).iterator();
+            while (iterator.hasNext()) {
+                count += loadBlocklistFile(iterator.next());
+            }
+        }
+        return count;
+    }
+
+    private int loadBlocklistFile(Path file) throws IOException {
+        int count = 0;
+        try (BufferedReader reader = Files.newBufferedReader(file)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
@@ -55,16 +87,13 @@ public class BlocklistService {
                 String[] parts = line.split("\\s+");
                 if (parts.length >= 2) {
                     String domain = parts[1].toLowerCase();
-                    if (!domain.equals("localhost")) {
-                        staticBlockedDomains.add(domain);
+                    if (!domain.equals("localhost") && staticBlockedDomains.add(domain)) {
                         count++;
                     }
                 }
             }
-            log.info("Loaded {} domains into the static blocklist", count);
-        } catch (IOException e) {
-            log.error("Failed to read blocklist file", e);
         }
+        return count;
     }
 
     /**
