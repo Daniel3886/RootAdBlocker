@@ -16,7 +16,6 @@ class DomainRuleRepositoryTest {
     @Autowired
     private DomainRuleRepository domainRuleRepository;
 
-
     @Test
     void findByDomainReturnsMatch() {
         domainRuleRepository.save(new DomainRule("ads.example.com", DomainRule.RuleType.BLOCK));
@@ -31,10 +30,7 @@ class DomainRuleRepositoryTest {
     void uniquenessConstraintWorks() {
         domainRuleRepository.saveAndFlush(new DomainRule("ads.example.com", DomainRule.RuleType.BLOCK));
 
-
         assertThrows(DataIntegrityViolationException.class, () ->
                 domainRuleRepository.saveAndFlush(new DomainRule("ads.example.com", DomainRule.RuleType.BLOCK)));
     }
-
-
 }

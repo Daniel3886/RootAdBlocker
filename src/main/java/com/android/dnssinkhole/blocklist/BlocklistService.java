@@ -1,6 +1,5 @@
 package com.android.dnssinkhole.blocklist;
 
-
 import com.android.dnssinkhole.model.DomainRule;
 import com.android.dnssinkhole.repository.DomainRuleRepository;
 import jakarta.annotation.PostConstruct;
@@ -17,18 +16,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
-/**
- * Fast path: a big static hosts-style blocklist loaded into memory at startup.
- * Slow/flexible path: user-added BLOCK or ALLOW rules stored in the DB,
- * checked after the in-memory set and able to override it (ALLOW wins).
- */
 @Service
 public class BlocklistService {
 
     private static final Logger log = LoggerFactory.getLogger(BlocklistService.class);
 
-    // Local cache of the hosts-file style list. Grab one from:
-    // https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     @Value("${sinkhole.blocklist.dir:${sinkhole.blocklist.file:blocklist}}")
     private String blocklistDir;
 
@@ -83,7 +75,6 @@ public class BlocklistService {
                 line = line.trim();
                 if (line.isEmpty() || line.startsWith("#")) continue;
 
-                // hosts file lines look like: "0.0.0.0 ads.example.com"
                 String[] parts = line.split("\\s+");
                 if (parts.length >= 2) {
                     String domain = parts[1].toLowerCase();
@@ -96,11 +87,6 @@ public class BlocklistService {
         return count;
     }
 
-    /**
-     * Returns true if the domain should be sinkholed.
-     * DB "ALLOW" rules always win over the static list (manual whitelist).
-     * DB "BLOCK" rules add to the static list without needing a re-download.
-     */
     public boolean isBlocked(String domain) {
         String normalized = domain.toLowerCase();
         if (normalized.endsWith(".")) {

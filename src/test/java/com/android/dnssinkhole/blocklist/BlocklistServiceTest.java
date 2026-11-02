@@ -50,7 +50,6 @@ class BlocklistServiceTest {
         blocklistService.loadStaticList();
     }
 
-
     @Test
     void staticListContainsBlockedDomains() {
         assertTrue(blocklistService.isBlocked("googlesyndication.com"));
@@ -98,5 +97,4 @@ class BlocklistServiceTest {
 
         assertFalse(blocklistService.isBlocked("doubleclick.net"));
     }
-
 }

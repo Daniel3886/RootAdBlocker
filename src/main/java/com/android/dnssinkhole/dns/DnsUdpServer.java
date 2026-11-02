@@ -1,6 +1,5 @@
 package com.android.dnssinkhole.dns;
 
-
 import com.android.dnssinkhole.blocklist.BlocklistService;
 import com.android.dnssinkhole.model.QueryLog;
 import com.android.dnssinkhole.repository.QueryLogRepository;
@@ -20,17 +19,11 @@ import java.net.InetAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Listens for raw DNS queries over UDP.
- *
- * IMPORTANT: port 53 is privileged.
- * Run this on a high port (default 5300 below) and redirect port 53 -> 5300 at the network/router level, or
- */
 @Component
 public class DnsUdpServer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DnsUdpServer.class);
-    private static final int MAX_PACKET_SIZE = 512; // standard DNS UDP message size
+    private static final int MAX_PACKET_SIZE = 512;
 
     @Value("${sinkhole.listen-port:5300}")
     private int listenPort;
@@ -53,7 +46,6 @@ public class DnsUdpServer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        // Runs the blocking receive loop on its own thread so it doesn't hold up Spring's startup.
         Thread listenerThread = new Thread(this::listenLoop, "dns-udp-listener");
         listenerThread.setDaemon(true);
         listenerThread.start();
@@ -67,10 +59,8 @@ public class DnsUdpServer implements ApplicationRunner {
             while (running) {
                 byte[] buffer = new byte[MAX_PACKET_SIZE];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet); // blocks until a query arrives
+                socket.receive(packet);
 
-                // Copy what we need before handing off to a worker thread,
-                // since 'packet'/'buffer' get reused on the next loop iteration.
                 DatagramPacket finalPacket = clonePacket(packet);
                 workerPool.submit(() -> handleQuery(finalPacket));
             }
@@ -102,7 +92,6 @@ public class DnsUdpServer implements ApplicationRunner {
 
             sendResponse(response, packet.getAddress(), packet.getPort());
 
-            // Fire-and-forget log write; don't let logging slow down DNS responses.
             queryLogRepository.save(new QueryLog(domain, clientIp, blocked));
 
         } catch (Exception e) {
@@ -110,13 +99,9 @@ public class DnsUdpServer implements ApplicationRunner {
         }
     }
 
-    /**
-     * Builds an NXDOMAIN reply so the client gives up immediately
-     * instead of waiting on a timeout.
-     */
     private Message buildBlockedResponse(Message query) {
         Message response = new Message(query.getHeader().getID());
-        response.getHeader().setFlag(Flags.QR); // mark as a response
+        response.getHeader().setFlag(Flags.QR);
         response.getHeader().setRcode(Rcode.NXDOMAIN);
         response.addRecord(query.getQuestion(), Section.QUESTION);
         return response;

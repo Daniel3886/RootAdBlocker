@@ -30,7 +30,6 @@ class DnsUdpServerTest {
     @Mock
     private QueryLogRepository queryLogRepository;
 
-
     @Test
     void blockedDomainReturnsNxdomainAndIsLogged() throws Exception {
 
@@ -136,5 +135,4 @@ class DnsUdpServerTest {
 
         socket.close();
     }
-
 }

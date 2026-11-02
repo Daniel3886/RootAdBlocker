@@ -17,7 +17,6 @@ public class DomainRule {
     @Column(nullable = false, unique = true)
     private String domain;
 
-    // BLOCK or ALLOW (ALLOW overrides the static hosts-file blocklist)
     @Enumerated(EnumType.STRING)
     private RuleType type;
 

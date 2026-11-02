@@ -7,10 +7,6 @@ import org.xbill.DNS.SimpleResolver;
 
 import java.io.IOException;
 
-/**
- * Forwards a query we're NOT blocking to a real upstream DNS server
- * (e.g. 1.1.1.1) and hands back its real answer.
- */
 @Component
 public class DnsForwarder {
 

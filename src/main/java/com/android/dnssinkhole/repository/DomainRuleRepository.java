@@ -1,6 +1,5 @@
 package com.android.dnssinkhole.repository;
 
-
 import com.android.dnssinkhole.model.DomainRule;
 import org.springframework.data.jpa.repository.JpaRepository;
 
