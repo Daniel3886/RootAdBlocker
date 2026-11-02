@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 @Entity
-@Table(name = "query_log")
+@Table(name = "query_log", indexes = @Index(name = "idx_query_log_timestamp", columnList = "timestamp"))
 @Data
 @NoArgsConstructor
 public class QueryLog {

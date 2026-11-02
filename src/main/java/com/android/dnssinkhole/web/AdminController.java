@@ -2,9 +2,20 @@ package com.android.dnssinkhole.web;
 
 import com.android.dnssinkhole.blocklist.BlocklistService;
 import com.android.dnssinkhole.model.DomainRule;
-import com.android.dnssinkhole.repository.DomainRuleRepository;
+import com.android.dnssinkhole.model.QueryLog;
 import com.android.dnssinkhole.repository.QueryLogRepository;
-import org.springframework.web.bind.annotation.*;
+import com.android.dnssinkhole.rules.DomainRuleService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
@@ -13,14 +24,14 @@ import java.util.Map;
 @RequestMapping("/api")
 public class AdminController {
 
-    private final DomainRuleRepository domainRuleRepository;
+    private final DomainRuleService domainRuleService;
     private final QueryLogRepository queryLogRepository;
     private final BlocklistService blocklistService;
 
-    public AdminController(DomainRuleRepository domainRuleRepository,
-                            QueryLogRepository queryLogRepository,
-                            BlocklistService blocklistService) {
-        this.domainRuleRepository = domainRuleRepository;
+    public AdminController(DomainRuleService domainRuleService,
+                           QueryLogRepository queryLogRepository,
+                           BlocklistService blocklistService) {
+        this.domainRuleService = domainRuleService;
         this.queryLogRepository = queryLogRepository;
         this.blocklistService = blocklistService;
     }
@@ -35,33 +46,38 @@ public class AdminController {
     }
 
     @GetMapping("/logs")
-    public List<?> recentLogs() {
+    public List<QueryLog> recentLogs() {
         return queryLogRepository.findTop100ByOrderByTimestampDesc();
     }
 
     @GetMapping("/rules")
     public List<DomainRule> rules() {
-        return domainRuleRepository.findAll();
+        return domainRuleService.findAll();
     }
 
     @PostMapping("/rules/block")
-    public DomainRule addBlockRule(@RequestBody Map<String, String> body) {
-        return domainRuleRepository.save(new DomainRule(body.get("domain").toLowerCase(), DomainRule.RuleType.BLOCK));
+    public DomainRule addBlockRule(@Valid @RequestBody RuleRequest request) {
+        return domainRuleService.upsert(request.domain(), DomainRule.RuleType.BLOCK);
+    }
+
+    @PostMapping("/rules/allow")
+    public DomainRule addAllowRule(@Valid @RequestBody RuleRequest request) {
+        return domainRuleService.upsert(request.domain(), DomainRule.RuleType.ALLOW);
+    }
+
+    @DeleteMapping("/rules/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteRule(@PathVariable Long id) {
+        domainRuleService.delete(id);
     }
 
     @GetMapping("/blocklist/check")
     public Map<String, Object> checkDomain(@RequestParam String domain) {
-        boolean blocked = blocklistService.isBlocked(domain);
-        return Map.of("domain", domain, "blocked", blocked);
+        return Map.of("domain", domain, "blocked", blocklistService.isBlocked(domain));
     }
 
-    @PostMapping("/rules/allow")
-    public DomainRule addAllowRule(@RequestBody Map<String, String> body) {
-        return domainRuleRepository.save(new DomainRule(body.get("domain").toLowerCase(), DomainRule.RuleType.ALLOW));
-    }
-
-    @DeleteMapping("/rules/{id}")
-    public void deleteRule(@PathVariable Long id) {
-        domainRuleRepository.deleteById(id);
+    @PostMapping("/blocklist/reload")
+    public Map<String, Object> reloadBlocklist() {
+        return Map.of("staticBlocklistSize", blocklistService.reloadStaticList());
     }
 }
