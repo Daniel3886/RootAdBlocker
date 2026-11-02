@@ -1,15 +1,16 @@
 package com.android.dnssinkhole.model;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "query_log")
-@Data
-@NoArgsConstructor
+@Table(name = "query_log", indexes = @Index(name = "idx_query_log_timestamp", columnList = "timestamp"))
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class QueryLog {
 
     @Id

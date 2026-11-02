@@ -14,16 +14,52 @@ years-old, underpowered hardware is enough to run this reliably.
 
 ## What's here
 
-- `DnsUdpServer` — opens a raw UDP socket, parses incoming DNS queries with
+- `DnsUdpServer`: opens a raw UDP socket, parses incoming DNS queries with
   dnsjava, checks each domain against the blocklist, and either replies
-  NXDOMAIN (blocked) or forwards to a real upstream DNS server (allowed).
-- `BlocklistService` — loads a big static hosts-style list into memory
-  (fast lookups), and checks the DB for user-added BLOCK/ALLOW overrides.
-- `DomainRule` / `QueryLog` — JPA entities backed by an H2 file database, so
+  NXDOMAIN (blocked) or forwards to a real upstream DNS server (allowed). If
+  the upstream lookup fails it replies SERVFAIL so clients don't hang.
+- `BlocklistService`: loads a big static hosts-style list into memory and
+  keeps the user-added BLOCK/ALLOW rules cached in memory too, so a DNS lookup
+  never touches the database.
+- `DomainRuleService`: validates and saves BLOCK/ALLOW rules, and keeps the
+  in-memory cache in sync.
+- `QueryLogWriter`: buffers query log entries and writes them to the database
+  in batches every 2 seconds. Entries older than the retention period are
+  deleted daily at 04:00.
+- `DomainRule` / `QueryLog`: JPA entities backed by an H2 file database, so
   manual rules and query history survive restarts.
-- `AdminController` — REST endpoints to view stats/logs and add block/allow
-  rules (`/api/stats`, `/api/logs`, `/api/rules`, POST `/api/rules/block`,
-  POST `/api/rules/allow`).
+- `AdminController`: REST API.
+
+### API
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/stats` | Blocklist size, total and blocked query counts |
+| GET | `/api/logs` | Last 100 queries |
+| GET | `/api/rules` | All BLOCK/ALLOW rules |
+| POST | `/api/rules/block` | Body `{"domain": "ads.example.com"}`. Adds or updates a BLOCK rule |
+| POST | `/api/rules/allow` | Body `{"domain": "ads.example.com"}`. Adds or updates an ALLOW rule |
+| DELETE | `/api/rules/{id}` | Deletes a rule (404 if it doesn't exist) |
+| GET | `/api/blocklist/check?domain=...` | Whether a domain is currently blocked |
+| POST | `/api/blocklist/reload` | Re-reads the `blocklist/` directory without a restart |
+
+Errors come back as JSON problem details with a 400 or 404 status.
+
+### Configuration
+
+All settings live in `src/main/resources/application.properties` and can be
+overridden on the command line, e.g. `java -jar target/dns-sinkhole.jar --sinkhole.listen-port=53`.
+
+| Property | Default | Meaning |
+|---|---|---|
+| `sinkhole.listen-port` | `5300` | UDP port for DNS. Use `53` on a rooted device |
+| `sinkhole.upstream-dns` | `1.1.1.1` | Upstream resolver for allowed domains |
+| `sinkhole.upstream-timeout` | `3s` | Upstream lookup timeout |
+| `sinkhole.worker-threads` | `4` | Threads handling DNS queries |
+| `sinkhole.queue-capacity` | `1000` | Pending queries before new ones are dropped |
+| `sinkhole.blocklist.dir` | `blocklist` | Directory (or single file) of hosts-style lists |
+| `sinkhole.query-log.retention-days` | `7` | Days of query history to keep. `0` keeps everything |
+| `sinkhole.query-log.buffer-capacity` | `10000` | Log entries held in memory between writes |
 
 ## Why rooting is necessary
 

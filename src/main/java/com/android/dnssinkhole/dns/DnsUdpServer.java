@@ -1,78 +1,84 @@
 package com.android.dnssinkhole.dns;
 
-
 import com.android.dnssinkhole.blocklist.BlocklistService;
-import com.android.dnssinkhole.model.QueryLog;
-import com.android.dnssinkhole.repository.QueryLogRepository;
+import com.android.dnssinkhole.blocklist.DomainNames;
+import com.android.dnssinkhole.config.SinkholeProperties;
+import com.android.dnssinkhole.querylog.QueryLogWriter;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
-import org.xbill.DNS.*;
+import org.xbill.DNS.Flags;
+import org.xbill.DNS.Message;
+import org.xbill.DNS.OPTRecord;
+import org.xbill.DNS.Rcode;
 import org.xbill.DNS.Record;
+import org.xbill.DNS.Section;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Listens for raw DNS queries over UDP.
- *
- * IMPORTANT: port 53 is privileged.
- * Run this on a high port (default 5300 below) and redirect port 53 -> 5300 at the network/router level, or
- */
 @Component
 public class DnsUdpServer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DnsUdpServer.class);
-    private static final int MAX_PACKET_SIZE = 512; // standard DNS UDP message size
-
-    @Value("${sinkhole.listen-port:5300}")
-    private int listenPort;
+    private static final int MAX_PACKET_SIZE = 4096;
+    private static final int MIN_UDP_PAYLOAD = 512;
 
     private final BlocklistService blocklistService;
     private final DnsForwarder dnsForwarder;
-    private final QueryLogRepository queryLogRepository;
+    private final QueryLogWriter queryLogWriter;
+    private final int listenPort;
+    private final ThreadPoolExecutor workerPool;
 
-    private final ExecutorService workerPool = Executors.newFixedThreadPool(4);
     private volatile boolean running = true;
     private DatagramSocket socket;
 
     public DnsUdpServer(BlocklistService blocklistService,
-                         DnsForwarder dnsForwarder,
-                         QueryLogRepository queryLogRepository) {
+                        DnsForwarder dnsForwarder,
+                        QueryLogWriter queryLogWriter,
+                        SinkholeProperties properties) {
         this.blocklistService = blocklistService;
         this.dnsForwarder = dnsForwarder;
-        this.queryLogRepository = queryLogRepository;
+        this.queryLogWriter = queryLogWriter;
+        this.listenPort = properties.listenPort();
+        this.workerPool = new ThreadPoolExecutor(
+                properties.workerThreads(),
+                properties.workerThreads(),
+                0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(properties.queueCapacity()),
+                workerThreadFactory(),
+                new ThreadPoolExecutor.DiscardPolicy());
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        // Runs the blocking receive loop on its own thread so it doesn't hold up Spring's startup.
         Thread listenerThread = new Thread(this::listenLoop, "dns-udp-listener");
         listenerThread.setDaemon(true);
         listenerThread.start();
     }
 
     private void listenLoop() {
-        try {
-            socket = new DatagramSocket(listenPort);
+        try (DatagramSocket boundSocket = new DatagramSocket(listenPort)) {
+            socket = boundSocket;
             log.info("DNS sinkhole listening on UDP port {}", listenPort);
 
+            byte[] buffer = new byte[MAX_PACKET_SIZE];
             while (running) {
-                byte[] buffer = new byte[MAX_PACKET_SIZE];
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-                socket.receive(packet); // blocks until a query arrives
-
-                // Copy what we need before handing off to a worker thread,
-                // since 'packet'/'buffer' get reused on the next loop iteration.
-                DatagramPacket finalPacket = clonePacket(packet);
-                workerPool.submit(() -> handleQuery(finalPacket));
+                socket.receive(packet);
+                DatagramPacket copy = copyPacket(packet);
+                workerPool.execute(() -> handleQuery(copy));
             }
         } catch (Exception e) {
             if (running) {
@@ -81,63 +87,101 @@ public class DnsUdpServer implements ApplicationRunner {
         }
     }
 
-    private void handleQuery(DatagramPacket packet) {
+    void handleQuery(DatagramPacket packet) {
         String clientIp = packet.getAddress().getHostAddress();
+
+        Message query;
         try {
-            Message query = new Message(packet.getData());
-            Record question = query.getQuestion();
-            if (question == null) return;
+            query = new Message(packet.getData());
+        } catch (IOException e) {
+            log.debug("Dropping malformed DNS packet from {}: {}", clientIp, e.getMessage());
+            return;
+        }
 
-            String domain = question.getName().toString();
-            boolean blocked = blocklistService.isBlocked(domain);
+        Record question = query.getQuestion();
+        if (question == null) {
+            return;
+        }
 
-            Message response;
-            if (blocked) {
-                response = buildBlockedResponse(query);
-                log.debug("BLOCKED {} (requested by {})", domain, clientIp);
-            } else {
-                response = dnsForwarder.forward(query);
-                log.debug("ALLOWED {} (requested by {})", domain, clientIp);
-            }
+        String domain = question.getName().toString();
+        boolean blocked = blocklistService.isBlocked(domain);
 
-            sendResponse(response, packet.getAddress(), packet.getPort());
+        Message response;
+        if (blocked) {
+            response = buildErrorResponse(query, Rcode.NXDOMAIN);
+            log.debug("BLOCKED {} (requested by {})", domain, clientIp);
+        } else {
+            response = forwardOrFail(query, domain);
+            log.debug("ALLOWED {} (requested by {})", domain, clientIp);
+        }
 
-            // Fire-and-forget log write; don't let logging slow down DNS responses.
-            queryLogRepository.save(new QueryLog(domain, clientIp, blocked));
+        try {
+            sendResponse(response, maxResponseSize(query), packet.getAddress(), packet.getPort());
+        } catch (IOException e) {
+            log.warn("Failed to send DNS response to {}: {}", clientIp, e.getMessage());
+        }
 
-        } catch (Exception e) {
-            log.warn("Failed to handle DNS query from {}: {}", clientIp, e.getMessage());
+        queryLogWriter.record(DomainNames.normalize(domain), clientIp, blocked);
+    }
+
+    private Message forwardOrFail(Message query, String domain) {
+        try {
+            return dnsForwarder.forward(query);
+        } catch (IOException e) {
+            log.warn("Upstream lookup failed for {}: {}", domain, e.getMessage());
+            return buildErrorResponse(query, Rcode.SERVFAIL);
         }
     }
 
-    /**
-     * Builds an NXDOMAIN reply so the client gives up immediately
-     * instead of waiting on a timeout.
-     */
-    private Message buildBlockedResponse(Message query) {
+    private Message buildErrorResponse(Message query, int rcode) {
         Message response = new Message(query.getHeader().getID());
-        response.getHeader().setFlag(Flags.QR); // mark as a response
-        response.getHeader().setRcode(Rcode.NXDOMAIN);
+        response.getHeader().setFlag(Flags.QR);
+        response.getHeader().setFlag(Flags.RA);
+        if (query.getHeader().getFlag(Flags.RD)) {
+            response.getHeader().setFlag(Flags.RD);
+        }
+        response.getHeader().setRcode(rcode);
         response.addRecord(query.getQuestion(), Section.QUESTION);
         return response;
     }
 
-    private void sendResponse(Message response, InetAddress address, int port) throws Exception {
-        byte[] responseBytes = response.toWire();
-        DatagramPacket responsePacket = new DatagramPacket(responseBytes, responseBytes.length, address, port);
-        socket.send(responsePacket);
+    private static int maxResponseSize(Message query) {
+        OPTRecord opt = query.getOPT();
+        if (opt == null) {
+            return MIN_UDP_PAYLOAD;
+        }
+        return Math.min(MAX_PACKET_SIZE, Math.max(MIN_UDP_PAYLOAD, opt.getPayloadSize()));
     }
 
-    private DatagramPacket clonePacket(DatagramPacket original) {
-        byte[] dataCopy = new byte[original.getLength()];
-        System.arraycopy(original.getData(), 0, dataCopy, 0, original.getLength());
-        return new DatagramPacket(dataCopy, dataCopy.length, original.getAddress(), original.getPort());
+    private void sendResponse(Message response, int maxSize, InetAddress address, int port) throws IOException {
+        byte[] responseBytes = response.toWire(maxSize);
+        socket.send(new DatagramPacket(responseBytes, responseBytes.length, address, port));
+    }
+
+    private static DatagramPacket copyPacket(DatagramPacket original) {
+        byte[] data = Arrays.copyOfRange(original.getData(), original.getOffset(),
+                original.getOffset() + original.getLength());
+        return new DatagramPacket(data, data.length, original.getAddress(), original.getPort());
+    }
+
+    private static ThreadFactory workerThreadFactory() {
+        AtomicInteger counter = new AtomicInteger();
+        return runnable -> {
+            Thread thread = new Thread(runnable, "dns-worker-" + counter.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 
     @PreDestroy
-    public void shutdown() {
+    public void shutdown() throws InterruptedException {
         running = false;
-        if (socket != null) socket.close();
+        if (socket != null) {
+            socket.close();
+        }
         workerPool.shutdown();
+        if (!workerPool.awaitTermination(5, TimeUnit.SECONDS)) {
+            workerPool.shutdownNow();
+        }
     }
 }
