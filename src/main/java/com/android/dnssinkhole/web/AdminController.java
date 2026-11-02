@@ -37,12 +37,11 @@ public class AdminController {
     }
 
     @GetMapping("/stats")
-    public Map<String, Object> stats() {
-        return Map.of(
-                "staticBlocklistSize", blocklistService.staticListSize(),
-                "totalQueriesLogged", queryLogRepository.count(),
-                "totalBlocked", queryLogRepository.countByBlockedTrue()
-        );
+    public StatsResponse stats() {
+        return new StatsResponse(
+                blocklistService.staticListSize(),
+                queryLogRepository.count(),
+                queryLogRepository.countByBlockedTrue());
     }
 
     @GetMapping("/logs")
