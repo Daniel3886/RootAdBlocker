@@ -1,4 +1,4 @@
-package com.android.dnssinkhole.model;
+package com.android.dnssinkhole.rules;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -11,7 +11,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DomainRule {
+class DomainRule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,10 +23,8 @@ public class DomainRule {
     @Enumerated(EnumType.STRING)
     private RuleType type;
 
-    public DomainRule(String domain, RuleType ruleType) {
+    DomainRule(String domain, RuleType ruleType) {
         this.domain = domain;
         this.type = ruleType;
     }
-
-    public enum RuleType { BLOCK, ALLOW }
 }

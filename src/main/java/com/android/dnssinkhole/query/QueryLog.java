@@ -1,4 +1,4 @@
-package com.android.dnssinkhole.model;
+package com.android.dnssinkhole.query;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -11,7 +11,7 @@ import java.time.Instant;
 @Table(name = "query_log", indexes = @Index(name = "idx_query_log_timestamp", columnList = "timestamp"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class QueryLog {
+class QueryLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,7 +22,7 @@ public class QueryLog {
     private boolean blocked;
     private Instant timestamp;
 
-    public QueryLog(String domain, String clientIp, boolean blocked) {
+    QueryLog(String domain, String clientIp, boolean blocked) {
         this.domain = domain;
         this.clientIp = clientIp;
         this.blocked = blocked;

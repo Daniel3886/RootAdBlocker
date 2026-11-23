@@ -2,7 +2,7 @@ package com.android.dnssinkhole.dns;
 
 import com.android.dnssinkhole.blocklist.BlocklistService;
 import com.android.dnssinkhole.config.TestProperties;
-import com.android.dnssinkhole.querylog.QueryLogWriter;
+import com.android.dnssinkhole.query.QueryLogWriter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

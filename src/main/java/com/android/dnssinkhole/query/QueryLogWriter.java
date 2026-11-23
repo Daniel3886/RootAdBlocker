@@ -1,8 +1,6 @@
-package com.android.dnssinkhole.querylog;
+package com.android.dnssinkhole.query;
 
 import com.android.dnssinkhole.config.SinkholeProperties;
-import com.android.dnssinkhole.model.QueryLog;
-import com.android.dnssinkhole.repository.QueryLogRepository;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +26,7 @@ public class QueryLogWriter {
     private final int retentionDays;
     private final AtomicLong dropped = new AtomicLong();
 
-    public QueryLogWriter(QueryLogRepository queryLogRepository, SinkholeProperties properties) {
+    QueryLogWriter(QueryLogRepository queryLogRepository, SinkholeProperties properties) {
         this.queryLogRepository = queryLogRepository;
         this.buffer = new ArrayBlockingQueue<>(properties.queryLog().bufferCapacity());
         this.retentionDays = properties.queryLog().retentionDays();
@@ -41,7 +39,7 @@ public class QueryLogWriter {
     }
 
     @Scheduled(fixedDelayString = "${sinkhole.query-log.flush-interval-ms:2000}")
-    public void flush() {
+    void flush() {
         List<QueryLog> batch = new ArrayList<>(MAX_BATCH_SIZE);
         while (buffer.drainTo(batch, MAX_BATCH_SIZE) > 0) {
             try {
@@ -61,7 +59,7 @@ public class QueryLogWriter {
     }
 
     @Scheduled(cron = "${sinkhole.query-log.cleanup-cron:0 0 4 * * *}")
-    public void purgeOldEntries() {
+    void purgeOldEntries() {
         if (retentionDays <= 0) {
             return;
         }
@@ -71,7 +69,7 @@ public class QueryLogWriter {
     }
 
     @PreDestroy
-    public void shutdown() {
+    void shutdown() {
         flush();
     }
 }

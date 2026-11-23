@@ -1,9 +1,9 @@
 package com.android.dnssinkhole.dns;
 
 import com.android.dnssinkhole.blocklist.BlocklistService;
-import com.android.dnssinkhole.blocklist.DomainNames;
+import com.android.dnssinkhole.common.DomainNames;
 import com.android.dnssinkhole.config.SinkholeProperties;
-import com.android.dnssinkhole.querylog.QueryLogWriter;
+import com.android.dnssinkhole.query.QueryLogWriter;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
-public class DnsUdpServer implements ApplicationRunner {
+class DnsUdpServer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DnsUdpServer.class);
     private static final int MAX_PACKET_SIZE = 4096;
@@ -44,7 +44,7 @@ public class DnsUdpServer implements ApplicationRunner {
     private volatile boolean running = true;
     private DatagramSocket socket;
 
-    public DnsUdpServer(BlocklistService blocklistService,
+    DnsUdpServer(BlocklistService blocklistService,
                         DnsForwarder dnsForwarder,
                         QueryLogWriter queryLogWriter,
                         SinkholeProperties properties) {
@@ -174,7 +174,7 @@ public class DnsUdpServer implements ApplicationRunner {
     }
 
     @PreDestroy
-    public void shutdown() throws InterruptedException {
+    void shutdown() throws InterruptedException {
         running = false;
         if (socket != null) {
             socket.close();

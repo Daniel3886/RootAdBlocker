@@ -1,12 +1,16 @@
 package com.android.dnssinkhole.blocklist;
 
+import com.android.dnssinkhole.common.DomainNames;
 import com.android.dnssinkhole.config.SinkholeProperties;
-import com.android.dnssinkhole.model.DomainRule;
-import com.android.dnssinkhole.repository.DomainRuleRepository;
+import com.android.dnssinkhole.rules.DomainRuleDeletedEvent;
+import com.android.dnssinkhole.rules.DomainRuleSavedEvent;
+import com.android.dnssinkhole.rules.DomainRuleService;
+import com.android.dnssinkhole.rules.RuleType;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -26,23 +30,23 @@ public class BlocklistService {
 
     private static final Logger log = LoggerFactory.getLogger(BlocklistService.class);
 
-    private final DomainRuleRepository domainRuleRepository;
+    private final DomainRuleService domainRuleService;
     private final Path blocklistPath;
-    private final Map<String, DomainRule.RuleType> overrides = new ConcurrentHashMap<>();
+    private final Map<String, RuleType> overrides = new ConcurrentHashMap<>();
     private volatile Set<String> staticBlockedDomains = Set.of();
 
-    public BlocklistService(DomainRuleRepository domainRuleRepository, SinkholeProperties properties) {
-        this.domainRuleRepository = domainRuleRepository;
+    BlocklistService(DomainRuleService domainRuleService, SinkholeProperties properties) {
+        this.domainRuleService = domainRuleService;
         this.blocklistPath = Path.of(properties.blocklist().dir());
     }
 
     @PostConstruct
-    public void init() {
+    void init() {
         reloadStaticList();
         reloadOverrides();
     }
 
-    public synchronized int reloadStaticList() {
+    synchronized int reloadStaticList() {
         Path path = blocklistPath.toAbsolutePath();
         if (!Files.exists(path)) {
             log.warn("Blocklist path not found at {}. Sinkhole will only use DB rules until you add one.", path);
@@ -69,27 +73,29 @@ public class BlocklistService {
         return domains.size();
     }
 
-    public void reloadOverrides() {
-        Map<String, DomainRule.RuleType> fresh = new ConcurrentHashMap<>();
-        domainRuleRepository.findAll().forEach(rule -> fresh.put(rule.getDomain(), rule.getType()));
+    void reloadOverrides() {
+        Map<String, RuleType> fresh = domainRuleService.currentRules();
         overrides.keySet().retainAll(fresh.keySet());
         overrides.putAll(fresh);
         log.info("Loaded {} block/allow rules from the database", fresh.size());
     }
 
-    public void applyRule(DomainRule rule) {
-        overrides.put(rule.getDomain(), rule.getType());
+    // AFTER_COMMIT: a rule that rolls back must never reach the in-memory cache.
+    @TransactionalEventListener
+    void onRuleSaved(DomainRuleSavedEvent event) {
+        overrides.put(event.domain(), event.type());
     }
 
-    public void removeRule(String domain) {
-        overrides.remove(domain);
+    @TransactionalEventListener
+    void onRuleDeleted(DomainRuleDeletedEvent event) {
+        overrides.remove(event.domain());
     }
 
     public boolean isBlocked(String domain) {
         String normalized = DomainNames.normalize(domain);
-        DomainRule.RuleType override = overrides.get(normalized);
+        RuleType override = overrides.get(normalized);
         if (override != null) {
-            return override == DomainRule.RuleType.BLOCK;
+            return override == RuleType.BLOCK;
         }
         return staticBlockedDomains.contains(normalized);
     }

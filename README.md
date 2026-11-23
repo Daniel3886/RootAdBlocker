@@ -14,21 +14,21 @@ years-old, underpowered hardware is enough to run this reliably.
 
 ## What's here
 
-- `DnsUdpServer`: opens a raw UDP socket, parses incoming DNS queries with
-  dnsjava, checks each domain against the blocklist, and either replies
-  NXDOMAIN (blocked) or forwards to a real upstream DNS server (allowed). If
-  the upstream lookup fails it replies SERVFAIL so clients don't hang.
-- `BlocklistService`: loads a big static hosts-style list into memory and
-  keeps the user-added BLOCK/ALLOW rules cached in memory too, so a DNS lookup
-  never touches the database.
-- `DomainRuleService`: validates and saves BLOCK/ALLOW rules, and keeps the
-  in-memory cache in sync.
-- `QueryLogWriter`: buffers query log entries and writes them to the database
-  in batches every 2 seconds. Entries older than the retention period are
-  deleted daily at 04:00.
-- `DomainRule` / `QueryLog`: JPA entities backed by an H2 file database, so
-  manual rules and query history survive restarts.
-- `AdminController`: REST API.
+The code is organised by feature. Each package owns its entity, repository,
+service and REST endpoints, and only its service (and any events) is public:
+
+| Package | What it does |
+|---|---|
+| `dns` | `DnsUdpServer` opens a raw UDP socket, parses DNS queries with dnsjava, and either replies NXDOMAIN (blocked) or forwards to the upstream resolver (allowed). If the upstream lookup fails it replies SERVFAIL so clients don't hang. |
+| `blocklist` | `BlocklistService` loads a large hosts-style list into memory and caches the user's BLOCK/ALLOW rules too, so a DNS lookup never touches the database. |
+| `rules` | `DomainRuleService` validates and saves BLOCK/ALLOW rules and publishes `DomainRuleSavedEvent` / `DomainRuleDeletedEvent`. `blocklist` applies them to its cache after the transaction commits. |
+| `query` | `QueryLogWriter` buffers query log entries and writes them in batches every 2 seconds. Entries older than the retention period are deleted daily at 04:00. |
+| `stats` | Aggregates counts from `blocklist` and `query`. |
+| `common`, `config` | Shared domain-name helpers and the typed `sinkhole.*` configuration. |
+
+Rules and query history are stored in an H2 file database, so they survive
+restarts. Dependencies only point one way: `dns` → `blocklist` → `rules`,
+`dns` → `query`, and `stats` → `blocklist` + `query`.
 
 ### API
 
