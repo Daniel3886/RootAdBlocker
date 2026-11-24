@@ -4,12 +4,12 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+
+import java.util.Objects;
 
 @Entity
 @Table(name = "domain_rules")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 class DomainRule {
 
@@ -21,10 +21,15 @@ class DomainRule {
     private String domain;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private RuleType type;
 
-    DomainRule(String domain, RuleType ruleType) {
-        this.domain = domain;
-        this.type = ruleType;
+    DomainRule(String domain, RuleType type) {
+        this.domain = Objects.requireNonNull(domain, "domain");
+        this.type = Objects.requireNonNull(type, "type");
+    }
+
+    void changeTypeTo(RuleType newType) {
+        this.type = Objects.requireNonNull(newType, "type");
     }
 }

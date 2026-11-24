@@ -25,13 +25,13 @@ class RuleChangesReachBlocklistTest {
     void committedRuleChangesUpdateTheBlocklistCache() {
         assertFalse(blocklistService.isBlocked("tracker.example.org"));
 
-        DomainRule rule = domainRuleService.upsert("tracker.example.org", RuleType.BLOCK);
+        DomainRule rule = domainRuleService.blockDomain("tracker.example.org");
         assertTrue(blocklistService.isBlocked("tracker.example.org"));
 
-        domainRuleService.upsert("tracker.example.org", RuleType.ALLOW);
+        domainRuleService.allowDomain("tracker.example.org");
         assertFalse(blocklistService.isBlocked("tracker.example.org"));
 
-        domainRuleService.upsert("tracker.example.org", RuleType.BLOCK);
+        domainRuleService.blockDomain("tracker.example.org");
         domainRuleService.delete(rule.getId());
         assertFalse(blocklistService.isBlocked("tracker.example.org"));
     }

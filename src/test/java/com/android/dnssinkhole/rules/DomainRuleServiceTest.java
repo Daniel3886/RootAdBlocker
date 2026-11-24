@@ -31,11 +31,11 @@ class DomainRuleServiceTest {
     private DomainRuleService domainRuleService;
 
     @Test
-    void upsertNormalizesDomainAndUpdatesCache() {
+    void blockDomainNormalizesDomainAndPublishesEvent() {
         when(domainRuleRepository.findByDomain("ads.example.com")).thenReturn(Optional.empty());
         when(domainRuleRepository.save(any(DomainRule.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        DomainRule saved = domainRuleService.upsert("  Ads.Example.COM. ", RuleType.BLOCK);
+        DomainRule saved = domainRuleService.blockDomain("  Ads.Example.COM. ");
 
         assertEquals("ads.example.com", saved.getDomain());
         assertEquals(RuleType.BLOCK, saved.getType());
@@ -43,12 +43,12 @@ class DomainRuleServiceTest {
     }
 
     @Test
-    void upsertChangesTypeOfExistingRule() {
+    void allowDomainChangesTypeOfExistingRule() {
         DomainRule existing = new DomainRule("ads.example.com", RuleType.BLOCK);
         when(domainRuleRepository.findByDomain("ads.example.com")).thenReturn(Optional.of(existing));
         when(domainRuleRepository.save(existing)).thenReturn(existing);
 
-        DomainRule saved = domainRuleService.upsert("ads.example.com", RuleType.ALLOW);
+        DomainRule saved = domainRuleService.allowDomain("ads.example.com");
 
         assertSame(existing, saved);
         assertEquals(RuleType.ALLOW, saved.getType());
@@ -56,9 +56,9 @@ class DomainRuleServiceTest {
     }
 
     @Test
-    void upsertRejectsInvalidDomain() {
+    void blockDomainRejectsInvalidDomain() {
         assertThrows(InvalidDomainException.class,
-                () -> domainRuleService.upsert("not a domain", RuleType.BLOCK));
+                () -> domainRuleService.blockDomain("not a domain"));
         verify(domainRuleRepository, never()).save(any());
         verifyNoInteractions(events);
     }

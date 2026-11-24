@@ -35,19 +35,13 @@ public class DomainRuleService {
     }
 
     @Transactional
-    DomainRule upsert(String rawDomain, RuleType type) {
-        String domain = DomainNames.normalize(rawDomain);
-        if (!DomainNames.isValid(domain)) {
-            throw new InvalidDomainException(rawDomain);
-        }
+    DomainRule blockDomain(String rawDomain) {
+        return saveRule(rawDomain, RuleType.BLOCK);
+    }
 
-        DomainRule rule = domainRuleRepository.findByDomain(domain)
-                .orElseGet(() -> new DomainRule(domain, type));
-        rule.setType(type);
-
-        DomainRule saved = domainRuleRepository.save(rule);
-        events.publishEvent(new DomainRuleSavedEvent(saved.getDomain(), saved.getType()));
-        return saved;
+    @Transactional
+    DomainRule allowDomain(String rawDomain) {
+        return saveRule(rawDomain, RuleType.ALLOW);
     }
 
     @Transactional
@@ -56,5 +50,28 @@ public class DomainRuleService {
                 .orElseThrow(() -> new RuleNotFoundException(id));
         domainRuleRepository.delete(rule);
         events.publishEvent(new DomainRuleDeletedEvent(rule.getDomain()));
+    }
+
+    private DomainRule saveRule(String rawDomain, RuleType type) {
+        String domain = normalizeAndValidate(rawDomain);
+
+        DomainRule rule = domainRuleRepository.findByDomain(domain)
+                .map(existing -> {
+                    existing.changeTypeTo(type);
+                    return existing;
+                })
+                .orElseGet(() -> new DomainRule(domain, type));
+
+        DomainRule saved = domainRuleRepository.save(rule);
+        events.publishEvent(new DomainRuleSavedEvent(saved.getDomain(), saved.getType()));
+        return saved;
+    }
+
+    private static String normalizeAndValidate(String rawDomain) {
+        String domain = DomainNames.normalize(rawDomain);
+        if (!DomainNames.isValid(domain)) {
+            throw new InvalidDomainException(rawDomain);
+        }
+        return domain;
     }
 }

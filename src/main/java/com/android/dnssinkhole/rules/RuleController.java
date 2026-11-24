@@ -30,12 +30,12 @@ class RuleController {
 
     @PostMapping("/block")
     DomainRule addBlockRule(@Valid @RequestBody RuleRequest request) {
-        return domainRuleService.upsert(request.domain(), RuleType.BLOCK);
+        return domainRuleService.blockDomain(request.domain());
     }
 
     @PostMapping("/allow")
     DomainRule addAllowRule(@Valid @RequestBody RuleRequest request) {
-        return domainRuleService.upsert(request.domain(), RuleType.ALLOW);
+        return domainRuleService.allowDomain(request.domain());
     }
 
     @DeleteMapping("/{id}")
