@@ -7,8 +7,7 @@ import com.android.dnssinkhole.rules.DomainRuleSavedEvent;
 import com.android.dnssinkhole.rules.DomainRuleService;
 import com.android.dnssinkhole.rules.RuleType;
 import jakarta.annotation.PostConstruct;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -25,10 +24,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
+@Slf4j
 @Service
 public class BlocklistService {
-
-    private static final Logger log = LoggerFactory.getLogger(BlocklistService.class);
 
     private final DomainRuleService domainRuleService;
     private final Path blocklistPath;

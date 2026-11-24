@@ -5,8 +5,7 @@ import com.android.dnssinkhole.common.DomainNames;
 import com.android.dnssinkhole.config.SinkholeProperties;
 import com.android.dnssinkhole.query.QueryLogWriter;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -28,10 +27,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Slf4j
 @Component
 class DnsUdpServer implements ApplicationRunner {
 
-    private static final Logger log = LoggerFactory.getLogger(DnsUdpServer.class);
     private static final int MAX_PACKET_SIZE = 4096;
     private static final int MIN_UDP_PAYLOAD = 512;
 

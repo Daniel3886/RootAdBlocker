@@ -2,8 +2,7 @@ package com.android.dnssinkhole.query;
 
 import com.android.dnssinkhole.config.SinkholeProperties;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,10 +14,10 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Slf4j
 @Component
 public class QueryLogWriter {
 
-    private static final Logger log = LoggerFactory.getLogger(QueryLogWriter.class);
     private static final int MAX_BATCH_SIZE = 500;
 
     private final QueryLogRepository queryLogRepository;
