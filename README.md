@@ -27,7 +27,12 @@ service and REST endpoints, and only its service (and any events) is public:
 | `common`, `config` | Shared domain-name helpers and the typed `sinkhole.*` configuration. |
 
 Rules and query history are stored in an H2 file database, so they survive
-restarts. Dependencies only point one way: `dns` → `blocklist` → `rules`,
+restarts. The schema is managed by Flyway: migrations live in
+`src/main/resources/db/migration` and run on startup, and Hibernate only
+validates that the entities match (`ddl-auto=validate`). To change the schema,
+add a new `V<n>__description.sql` file; never edit one that has already run.
+A database created by an older version without Flyway is baselined at V1 on
+first start, so only the newer migrations run on it. Dependencies only point one way: `dns` → `blocklist` → `rules`,
 `dns` → `query`, and `stats` → `blocklist` + `query`.
 
 ### API
