@@ -1,4 +1,4 @@
-package com.android.dnssinkhole.blocklist;
+package com.android.dnssinkhole.common;
 
 import java.util.Locale;
 import java.util.regex.Pattern;

@@ -1,0 +1,3 @@
+DELETE FROM domain_rules WHERE type IS NULL;
+
+ALTER TABLE domain_rules ALTER COLUMN type SET NOT NULL;

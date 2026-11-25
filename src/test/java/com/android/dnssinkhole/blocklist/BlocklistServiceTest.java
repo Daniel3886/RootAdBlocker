@@ -1,8 +1,10 @@
 package com.android.dnssinkhole.blocklist;
 
 import com.android.dnssinkhole.config.TestProperties;
-import com.android.dnssinkhole.model.DomainRule;
-import com.android.dnssinkhole.repository.DomainRuleRepository;
+import com.android.dnssinkhole.rules.DomainRuleDeletedEvent;
+import com.android.dnssinkhole.rules.DomainRuleSavedEvent;
+import com.android.dnssinkhole.rules.DomainRuleService;
+import com.android.dnssinkhole.rules.RuleType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,7 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,7 +26,7 @@ import static org.mockito.Mockito.when;
 class BlocklistServiceTest {
 
     @Mock
-    private DomainRuleRepository domainRuleRepository;
+    private DomainRuleService domainRuleService;
 
     @TempDir
     private Path blocklistDir;
@@ -45,18 +47,18 @@ class BlocklistServiceTest {
                 0.0.0.0 44chan.me
                 """);
 
-        blocklistService = new BlocklistService(domainRuleRepository,
+        blocklistService = new BlocklistService(domainRuleService,
                 TestProperties.withBlocklistDir(blocklistDir.toString()));
     }
 
-    private void initWithRules(DomainRule... rules) {
-        when(domainRuleRepository.findAll()).thenReturn(List.of(rules));
+    private void initWithRules(Map<String, RuleType> rules) {
+        when(domainRuleService.currentRules()).thenReturn(rules);
         blocklistService.init();
     }
 
     @Test
     void staticListContainsBlockedDomains() {
-        initWithRules();
+        initWithRules(Map.of());
         assertTrue(blocklistService.isBlocked("googlesyndication.com"));
         assertTrue(blocklistService.isBlocked("doubleclick.net"));
         assertTrue(blocklistService.isBlocked("44chan.me"));
@@ -64,14 +66,14 @@ class BlocklistServiceTest {
 
     @Test
     void loadsDomainsFromAllFilesInDirectory() {
-        initWithRules();
+        initWithRules(Map.of());
         assertTrue(blocklistService.isBlocked("ads.example.com"));
         assertEquals(4, blocklistService.staticListSize());
     }
 
     @Test
     void staticListDoesNotContainAllowedDomains() {
-        initWithRules();
+        initWithRules(Map.of());
         assertFalse(blocklistService.isBlocked("localhost"));
         assertFalse(blocklistService.isBlocked("0.0.0.0"));
         assertFalse(blocklistService.isBlocked("google.com"));
@@ -79,14 +81,14 @@ class BlocklistServiceTest {
 
     @Test
     void doesCaseInsensitiveMatching() {
-        initWithRules();
+        initWithRules(Map.of());
         assertFalse(blocklistService.isBlocked("Google.com"));
         assertTrue(blocklistService.isBlocked("44CHAN.me"));
     }
 
     @Test
     void doesTrailingDotMatching() {
-        initWithRules();
+        initWithRules(Map.of());
         assertTrue(blocklistService.isBlocked("googlesyndication.com."));
         assertTrue(blocklistService.isBlocked("doubleclick.net."));
         assertTrue(blocklistService.isBlocked("44chan.me."));
@@ -94,30 +96,30 @@ class BlocklistServiceTest {
 
     @Test
     void doesDBOverrideBlocking() {
-        initWithRules(new DomainRule("google.com", DomainRule.RuleType.BLOCK));
+        initWithRules(Map.of("google.com", RuleType.BLOCK));
         assertTrue(blocklistService.isBlocked("google.com"));
     }
 
     @Test
     void doesDBOverrideAllowing() {
-        initWithRules(new DomainRule("doubleclick.net", DomainRule.RuleType.ALLOW));
+        initWithRules(Map.of("doubleclick.net", RuleType.ALLOW));
         assertFalse(blocklistService.isBlocked("doubleclick.net"));
     }
 
     @Test
     void appliesAndRemovesRulesWithoutReload() {
-        initWithRules();
+        initWithRules(Map.of());
 
-        blocklistService.applyRule(new DomainRule("doubleclick.net", DomainRule.RuleType.ALLOW));
+        blocklistService.onRuleSaved(new DomainRuleSavedEvent("doubleclick.net", RuleType.ALLOW));
         assertFalse(blocklistService.isBlocked("doubleclick.net"));
 
-        blocklistService.removeRule("doubleclick.net");
+        blocklistService.onRuleDeleted(new DomainRuleDeletedEvent("doubleclick.net"));
         assertTrue(blocklistService.isBlocked("doubleclick.net"));
     }
 
     @Test
     void reloadPicksUpNewFiles() throws IOException {
-        initWithRules();
+        initWithRules(Map.of());
         Files.writeString(blocklistDir.resolve("extra.txt"), "0.0.0.0 tracker.example.org\n");
 
         assertEquals(5, blocklistService.reloadStaticList());

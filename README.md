@@ -14,21 +14,26 @@ years-old, underpowered hardware is enough to run this reliably.
 
 ## What's here
 
-- `DnsUdpServer`: opens a raw UDP socket, parses incoming DNS queries with
-  dnsjava, checks each domain against the blocklist, and either replies
-  NXDOMAIN (blocked) or forwards to a real upstream DNS server (allowed). If
-  the upstream lookup fails it replies SERVFAIL so clients don't hang.
-- `BlocklistService`: loads a big static hosts-style list into memory and
-  keeps the user-added BLOCK/ALLOW rules cached in memory too, so a DNS lookup
-  never touches the database.
-- `DomainRuleService`: validates and saves BLOCK/ALLOW rules, and keeps the
-  in-memory cache in sync.
-- `QueryLogWriter`: buffers query log entries and writes them to the database
-  in batches every 2 seconds. Entries older than the retention period are
-  deleted daily at 04:00.
-- `DomainRule` / `QueryLog`: JPA entities backed by an H2 file database, so
-  manual rules and query history survive restarts.
-- `AdminController`: REST API.
+The code is organised by feature. Each package owns its entity, repository,
+service and REST endpoints, and only its service (and any events) is public:
+
+| Package | What it does |
+|---|---|
+| `dns` | `DnsUdpServer` opens a raw UDP socket, parses DNS queries with dnsjava, and either replies NXDOMAIN (blocked) or forwards to the upstream resolver (allowed). If the upstream lookup fails it replies SERVFAIL so clients don't hang. |
+| `blocklist` | `BlocklistService` loads a large hosts-style list into memory and caches the user's BLOCK/ALLOW rules too, so a DNS lookup never touches the database. |
+| `rules` | `DomainRuleService` validates and saves BLOCK/ALLOW rules and publishes `DomainRuleSavedEvent` / `DomainRuleDeletedEvent`. `blocklist` applies them to its cache after the transaction commits. |
+| `query` | `QueryLogWriter` buffers query log entries and writes them in batches every 2 seconds. Entries older than the retention period are deleted daily at 04:00. |
+| `stats` | Aggregates counts from `blocklist` and `query`. |
+| `common`, `config` | Shared domain-name helpers and the typed `sinkhole.*` configuration. |
+
+Rules and query history are stored in an H2 file database, so they survive
+restarts. The schema is managed by Flyway: migrations live in
+`src/main/resources/db/migration` and run on startup, and Hibernate only
+validates that the entities match (`ddl-auto=validate`). To change the schema,
+add a new `V<n>__description.sql` file; never edit one that has already run.
+A database created by an older version without Flyway is baselined at V1 on
+first start, so only the newer migrations run on it. Dependencies only point one way: `dns` → `blocklist` → `rules`,
+`dns` → `query`, and `stats` → `blocklist` + `query`.
 
 ### API
 
@@ -61,6 +66,27 @@ overridden on the command line, e.g. `java -jar target/dns-sinkhole.jar --sinkho
 | `sinkhole.query-log.retention-days` | `7` | Days of query history to keep. `0` keeps everything |
 | `sinkhole.query-log.buffer-capacity` | `10000` | Log entries held in memory between writes |
 
+### Profiles
+
+`application.properties` holds the defaults, which suit running on a PC
+(DNS on port 5300, no root needed). The `android` profile in
+`application-android.properties` overrides only what differs on the device:
+port 53, two worker threads and three days of query history.
+
+A profile is chosen when the app starts, not when it's cloned or built, so
+the same jar runs both ways:
+
+```bash
+java -jar target/dns-sinkhole.jar                                   # PC defaults
+java -jar target/dns-sinkhole.jar --spring.profiles.active=android  # device
+```
+
+Settings for one particular device (a different upstream resolver, say) go in
+`config/application.properties` in the directory the app is started from.
+Spring loads it automatically, it overrides both files above, and `config/` is
+git-ignored so `git pull` never touches it. Command-line arguments override
+everything.
+
 ## Why rooting is necessary
 
 Standard DNS clients (routers, phones, laptops) always query **port 53** —
@@ -71,8 +97,8 @@ Two options existed: run on a high port (5300) and try to redirect 53→5300 at
 the network level, or root the device and bind port 53 directly. If the device isn't a
 daily driver, rooting will be the simpler, more direct fix — no
 router cooperation or userspace redirect tooling required. Once rooted, this
-project runs the DNS listener straight on port 53
-(`sinkhole.listen-port=53` in `application.properties`), so devices need
+project runs the DNS listener straight on port 53 (set by the `android`
+profile, see [Profiles](#profiles)), so devices need
 nothing beyond a normal DNS server IP setting.
 
 *(A Raspberry Pi is the more conventional choice here since it's Linux with
@@ -162,8 +188,12 @@ scp -P 8022 target/dns-sinkhole.jar <username>@<device-ip>:~/RootDNS/target/
 ### 7. Run
 
 ```bash
-java -jar target/dns-sinkhole.jar
+./run-android.sh
 ```
+
+The script starts the jar as root with the `android` profile, which is what
+lets it bind port 53. Extra arguments are passed through, e.g.
+`./run-android.sh --sinkhole.upstream-dns=9.9.9.9`.
 
 Expected output:
 

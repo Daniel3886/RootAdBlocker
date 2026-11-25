@@ -1,47 +1,77 @@
 package com.android.dnssinkhole.rules;
 
-import com.android.dnssinkhole.blocklist.BlocklistService;
-import com.android.dnssinkhole.blocklist.DomainNames;
-import com.android.dnssinkhole.model.DomainRule;
-import com.android.dnssinkhole.repository.DomainRuleRepository;
+import com.android.dnssinkhole.common.DomainNames;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class DomainRuleService {
 
     private final DomainRuleRepository domainRuleRepository;
-    private final BlocklistService blocklistService;
+    private final ApplicationEventPublisher events;
 
-    public DomainRuleService(DomainRuleRepository domainRuleRepository, BlocklistService blocklistService) {
+    DomainRuleService(DomainRuleRepository domainRuleRepository, ApplicationEventPublisher events) {
         this.domainRuleRepository = domainRuleRepository;
-        this.blocklistService = blocklistService;
+        this.events = events;
     }
 
-    public List<DomainRule> findAll() {
+    /**
+     * Snapshot of every rule as domain -> type, for features that keep their own cache.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, RuleType> currentRules() {
+        return domainRuleRepository.findAll().stream()
+                .collect(Collectors.toMap(DomainRule::getDomain, DomainRule::getType));
+    }
+
+    @Transactional(readOnly = true)
+    List<DomainRule> findAll() {
         return domainRuleRepository.findAll();
     }
 
-    public DomainRule upsert(String rawDomain, DomainRule.RuleType type) {
+    @Transactional
+    DomainRule blockDomain(String rawDomain) {
+        return saveRule(rawDomain, RuleType.BLOCK);
+    }
+
+    @Transactional
+    DomainRule allowDomain(String rawDomain) {
+        return saveRule(rawDomain, RuleType.ALLOW);
+    }
+
+    @Transactional
+    void delete(Long id) {
+        DomainRule rule = domainRuleRepository.findById(id)
+                .orElseThrow(() -> new RuleNotFoundException(id));
+        domainRuleRepository.delete(rule);
+        events.publishEvent(new DomainRuleDeletedEvent(rule.getDomain()));
+    }
+
+    private DomainRule saveRule(String rawDomain, RuleType type) {
+        String domain = normalizeAndValidate(rawDomain);
+
+        DomainRule rule = domainRuleRepository.findByDomain(domain)
+                .map(existing -> {
+                    existing.changeTypeTo(type);
+                    return existing;
+                })
+                .orElseGet(() -> new DomainRule(domain, type));
+
+        DomainRule saved = domainRuleRepository.save(rule);
+        events.publishEvent(new DomainRuleSavedEvent(saved.getDomain(), saved.getType()));
+        return saved;
+    }
+
+    private static String normalizeAndValidate(String rawDomain) {
         String domain = DomainNames.normalize(rawDomain);
         if (!DomainNames.isValid(domain)) {
             throw new InvalidDomainException(rawDomain);
         }
-
-        DomainRule rule = domainRuleRepository.findByDomain(domain)
-                .orElseGet(() -> new DomainRule(domain, type));
-        rule.setType(type);
-
-        DomainRule saved = domainRuleRepository.save(rule);
-        blocklistService.applyRule(saved);
-        return saved;
-    }
-
-    public void delete(Long id) {
-        DomainRule rule = domainRuleRepository.findById(id)
-                .orElseThrow(() -> new RuleNotFoundException(id));
-        domainRuleRepository.delete(rule);
-        blocklistService.removeRule(rule.getDomain());
+        return domain;
     }
 }

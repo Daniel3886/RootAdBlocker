@@ -1,9 +1,8 @@
-package com.android.dnssinkhole.repository;
+package com.android.dnssinkhole.rules;
 
-import com.android.dnssinkhole.model.DomainRule;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Optional;
@@ -18,19 +17,19 @@ class DomainRuleRepositoryTest {
 
     @Test
     void findByDomainReturnsMatch() {
-        domainRuleRepository.save(new DomainRule("ads.example.com", DomainRule.RuleType.BLOCK));
+        domainRuleRepository.save(new DomainRule("ads.example.com", RuleType.BLOCK));
 
         Optional<DomainRule> rule = domainRuleRepository.findByDomain("ads.example.com");
 
         assertTrue(rule.isPresent());
-        assertEquals(DomainRule.RuleType.BLOCK, rule.get().getType());
+        assertEquals(RuleType.BLOCK, rule.get().getType());
     }
 
     @Test
     void uniquenessConstraintWorks() {
-        domainRuleRepository.saveAndFlush(new DomainRule("ads.example.com", DomainRule.RuleType.BLOCK));
+        domainRuleRepository.saveAndFlush(new DomainRule("ads.example.com", RuleType.BLOCK));
 
         assertThrows(DataIntegrityViolationException.class, () ->
-                domainRuleRepository.saveAndFlush(new DomainRule("ads.example.com", DomainRule.RuleType.BLOCK)));
+                domainRuleRepository.saveAndFlush(new DomainRule("ads.example.com", RuleType.BLOCK)));
     }
 }

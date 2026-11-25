@@ -8,16 +8,16 @@ import org.xbill.DNS.SimpleResolver;
 import java.io.IOException;
 
 @Component
-public class DnsForwarder {
+class DnsForwarder {
 
     private final SimpleResolver resolver;
 
-    public DnsForwarder(SinkholeProperties properties) throws IOException {
+    DnsForwarder(SinkholeProperties properties) throws IOException {
         this.resolver = new SimpleResolver(properties.upstreamDns());
         this.resolver.setTimeout(properties.upstreamTimeout());
     }
 
-    public Message forward(Message query) throws IOException {
+    Message forward(Message query) throws IOException {
         return resolver.send(query);
     }
 }
